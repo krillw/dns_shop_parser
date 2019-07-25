@@ -16,9 +16,10 @@ options.headless = False
 driver = webdriver.Firefox()
 
 url = 'https://www.dns-shop.ru/catalog/markdown/'
+city_list = ['Красноярск']
 
 def choose_city(town):
-    driver.get('https://www.dns-shop.ru/delivery/') # Любая текстовая страница -- так быстрее загружается
+    driver.get(url)
 
     # Кликаем на выбор города
     driver.find_element_by_xpath\
@@ -35,7 +36,6 @@ def choose_city(town):
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')
     count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
     count_of_items = int(count_of_items[:count_of_items.find('товар')])
-
     count_of_pages = (count_of_items - 20) // 20 if (count_of_items - 20) % 20 == 0 else (count_of_items - 20) // 20 + 1
 
     return count_of_pages # число страниц, начиная со второй
@@ -50,23 +50,34 @@ def choose_city(town):
 
 def data_to_base(page_url): # Получаем данные для базы с одной страницы
     driver.get(page_url)
-
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')
+    # Обновление инфы об общем числе товаров
+    count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
+    count_of_items = int(count_of_items[:count_of_items.find('товар')])
+    count_of_pages = (count_of_items - 20) // 20 if (count_of_items - 20) % 20 == 0 else (count_of_items - 20) // 20 + 1
+
     list_of_blocks = soup.find_all('div', class_='product')
     data_to_base = []
 
     for block in list_of_blocks:
         name = block.find('div', class_='item-name').find('a').get_text()
         link = 'https://www.dns-shop.ru' + block.find('div', class_='item-name').find('a').get('href')
-        old_price = int(block.find('div', class_='markdown-price-old').get_text().replace(' ', ''))
+
         curr_price = int(block.find('div', class_='price_g').find('span').get_text().replace(' ', ''))
-        diff = old_price - curr_price
+
+        try:
+            old_price = int(block.find('div', class_='markdown-price-old').get_text().replace(' ', ''))
+            diff = old_price - curr_price
+        except AttributeError:
+            old_price = None
+            diff = None
+
         id = link[41:-1]
 
         data_to_base.append(
             (id, name, link, old_price, curr_price, diff))
 
-        return data_to_base
+    return data_to_base, count_of_pages
 
 
 
@@ -95,7 +106,7 @@ def update_base(data, name_of_table):
     count_of_update = 0
     count_of_insert = 0
 
-    makdown_list = []
+    markdown_list = []
     new_item_list = []
 
     for data_id in data:
@@ -104,23 +115,25 @@ def update_base(data, name_of_table):
                 if data_id[4] != table_data[1]:
                     cursor.execute(f"UPDATE {name_of_table} SET old_price=?, curr_price=?, diff=? WHERE id=?",
                                    (data_id[3], data_id[4], data_id[5], data_id[0]))
-                    makdown_list.append(data_id)
+                    markdown_list.append(data_id)
                     count_of_update += 1
                     break
                 else: break
 
         if data_id[0] != table_data[0]:
-            cursor.execute(f"INSERT OR IGNORE INTO {name_of_table} VALUES (?,?,?,?,?,?)", data_id)
+            cursor.execute(f"INSERT INTO {name_of_table} VALUES (?,?,?,?,?,?)", data_id)
             new_item_list.append(data_id)
             count_of_insert += 1
 
     print('Добавлено ' + str(count_of_insert) + '.\nОбновлено ' + str(count_of_update) + '.')
     print(new_item_list)
-    print(makdown_list)
+    print(markdown_list)
 
     # Сохраняем изменения
     conn.commit()
     conn.close()
+
+    return new_item_list, markdown_list
 
 
 
@@ -136,14 +149,19 @@ def get_city_data(city):
         else:
             page_url = url + '?offset=' + str(i * 20)
 
-        data = data_to_base(page_url) # получаем данные для базы
+        data, count_of_pages = data_to_base(page_url) # получаем данные для базы
         update_base(data, city) # запись в базу
 
 
 
 
-get_city_data('Красноярск')
+def main():
+    for city in city_list:
+        get_city_data(city)
 
 
+
+if __name__ == '__main__':
+    main()
 
 
