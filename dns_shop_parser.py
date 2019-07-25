@@ -36,7 +36,9 @@ def choose_city(town):
     count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
     count_of_items = int(count_of_items[:count_of_items.find('товар')])
 
-    return count_of_items
+    count_of_pages = (count_of_items - 20) // 20 if (count_of_items - 20) % 20 == 0 else (count_of_items - 20) // 20 + 1
+
+    return count_of_pages # число страниц, начиная со второй
 
 
 
@@ -56,8 +58,8 @@ def data_to_base(page_url): # Получаем данные для базы с �
     for block in list_of_blocks:
         name = block.find('div', class_='item-name').find('a').get_text()
         link = 'https://www.dns-shop.ru' + block.find('div', class_='item-name').find('a').get('href')
-        old_price = int(block.find('div', class_='markdown-price-old').get_text())
-        curr_price = int(block.find('div', class_='price_g').find('span').get_text())
+        old_price = int(block.find('div', class_='markdown-price-old').get_text().replace(' ', ''))
+        curr_price = int(block.find('div', class_='price_g').find('span').get_text().replace(' ', ''))
         diff = old_price - curr_price
         id = link[41:-1]
 
@@ -124,17 +126,23 @@ def update_base(data, name_of_table):
 
 
 
-def main(city):
-
+def get_city_data(city):
     count_of_pages = choose_city(city)
 
-    data = data_to_base() # получаем данные для базы
-    update_base(data, city) # запись в базу
+    for i in range(count_of_pages + 1):
+
+        if i == 0:
+            page_url = url
+        else:
+            page_url = url + '?offset=' + str(i * 20)
+
+        data = data_to_base(page_url) # получаем данные для базы
+        update_base(data, city) # запись в базу
 
 
 
-if __name__ == '__main__':
-    main('Красноярск')
+
+get_city_data('Красноярск')
 
 
 
