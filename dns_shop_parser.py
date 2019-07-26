@@ -15,7 +15,7 @@ import settings
 
 
 
-
+start_time = time.time()
 options = webdriver.FirefoxOptions()
 options.headless = False
 driver = webdriver.Firefox()
@@ -27,23 +27,38 @@ def choose_city(town):
     driver.get(url)
 
     # Кликаем на выбор города
-    driver.find_element_by_xpath\
-        ('/html/body/header/div[2]/div/div[1]/ul[1]/li[1]/div/div[2]/a[2]').click() # Сделать нормальный xpath
+    try:
+        WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//div[@class="header-top"]/div/ul/li/div/div')))
+        time.sleep(1)
+        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
+
+    except:
+        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
+        #driver.find_element_by_link_text(town).click()
 
     WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//div[@class="search-field"]/input')))
     search_field = driver.find_element_by_xpath('//div[@class="search-field"]/input')
-    search_field.send_keys(town) # Долго думает перед переходом. Если будет время, подумать как ускорить
-    driver.find_element_by_link_text(town).click()
+    search_field.send_keys(town)  # В окне поиска вводим город
+
+    # Кликаем на город
+    gorod_list = driver.find_elements_by_xpath('//div/div/div/ul/li/a/span/mark/..')
+    for gorod in gorod_list:
+        if town == gorod.text:
+            gorod.click()
+        else:
+            continue
 
     WebDriverWait(driver, 30).until(EC.text_to_be_present_in_element(
         (By.XPATH, '//div[@class="navbar-menu"]/div/div/ul/li/div/div'), town))
-    driver.get(url)
+
+    driver.current_window_handle
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')
+    # Обновление инфы об общем числе товаров
     count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
     count_of_items = int(count_of_items[:count_of_items.find('товар')])
     count_of_pages = (count_of_items - 20) // 20 if (count_of_items - 20) % 20 == 0 else (count_of_items - 20) // 20 + 1
 
-    return count_of_pages # число страниц, начиная со второй
+    return count_of_pages
 
 
 
@@ -193,8 +208,8 @@ def get_city_data(city):
     new_item_message = result_data_handler(new_item)
     markdown_message = result_data_handler(markdown)
 
-    whole_message = '***** НОВЫЕ ТОВАРЫ *****' + '\n\n' + new_item_message + '\n\n' + \
-                    '***** УЦЕНЁННЫЕ ТОВАРЫ *****' + '\n\n' + markdown_message
+    whole_message = '***** НОВЫЕ ТОВАРЫ ПО ГОРОДУ ' + city + ' *****' + '\n\n' + new_item_message + '\n\n' + \
+                    '***** УЦЕНЁННЫЕ ТОВАРЫ ПО ГОРОДУ ' + city + ' *****' + '\n\n' + markdown_message
 
     return whole_message
 
@@ -203,8 +218,10 @@ def get_city_data(city):
 def main():
     for city in city_list:
         mess = get_city_data(city)
-        if len(mess) > 70:
+        if len(mess) > 150:
             send_mail(mess)
+    driver.close()
+    print("--- На выполение скрипта ушло: %s минут ---" % int(((time.time() - start_time))/60))
 
 
 
