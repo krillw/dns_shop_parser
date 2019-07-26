@@ -7,7 +7,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-import time, bs4, sys, sqlite3
+import time, bs4, sys, sqlite3, pprint
+import smtplib, email
+from email.mime.text import MIMEText
+from email.header import Header
+import settings
+
 
 
 
@@ -16,7 +21,7 @@ options.headless = False
 driver = webdriver.Firefox()
 
 url = 'https://www.dns-shop.ru/catalog/markdown/'
-city_list = ['Красноярск']
+city_list = settings.city_list
 
 def choose_city(town):
     driver.get(url)
@@ -40,10 +45,6 @@ def choose_city(town):
 
     return count_of_pages # число страниц, начиная со второй
 
-
-
-# Узнать, сколько раз мне получать данные страниц
-# Выдавать правильный url
 
 
 
@@ -126,8 +127,8 @@ def update_base(data, name_of_table):
             count_of_insert += 1
 
     print('Добавлено ' + str(count_of_insert) + '.\nОбновлено ' + str(count_of_update) + '.')
-    print(new_item_list)
-    print(markdown_list)
+    #print(new_item_list)
+    #print(markdown_list)
 
     # Сохраняем изменения
     conn.commit()
@@ -136,11 +137,46 @@ def update_base(data, name_of_table):
     return new_item_list, markdown_list
 
 
+def result_data_handler(result_data):
+    message = ''
+    for item in result_data:
+        message = message + item[1] + '\n' + item[2] + '\n' + 'Старая цена: ' + str(item[3]) + '\n' + \
+                  'Текущая цена: ' + str(item[4]) + '\n' + 'Разница: ' + str(item[5]) + '\n' + \
+                  '--------------' + '\n'
+    if 'None' in message:
+        message = message.replace('None', '')
+    return message
+
+
+
+def send_mail(message):
+    smtp_host = settings.email_data.get('smtp_host')
+    login = settings.email_data.get('login')
+    password = settings.email_data.get('password')
+    recipients_emails = settings.email_data.get('recipients_emails')
+
+    msg = MIMEText(message, 'plain', 'utf-8')
+    msg['Subject'] = Header('Обновление данных на dns-shop.ru', 'utf-8')
+    msg['From'] = settings.email_data.get('from')
+    msg['To'] = recipients_emails
+
+    s = smtplib.SMTP(smtp_host, 587, timeout=10)
+    # s.set_debuglevel(1)
+    try:
+        s.starttls()
+        s.login(login, password)
+        s.sendmail(msg['From'], recipients_emails, msg.as_string())
+    finally:
+        print(msg)
+        s.quit()
 
 
 
 def get_city_data(city):
     count_of_pages = choose_city(city)
+
+    new_item = []
+    markdown = []
 
     for i in range(count_of_pages + 1):
 
@@ -150,14 +186,25 @@ def get_city_data(city):
             page_url = url + '?offset=' + str(i * 20)
 
         data, count_of_pages = data_to_base(page_url) # получаем данные для базы
-        update_base(data, city) # запись в базу
+        new_item_list, markdown_list = update_base(data, city) # запись в базу
+        new_item = new_item + new_item_list
+        markdown = markdown + markdown_list
 
+    new_item_message = result_data_handler(new_item)
+    markdown_message = result_data_handler(markdown)
+
+    whole_message = '***** НОВЫЕ ТОВАРЫ *****' + '\n\n' + new_item_message + '\n\n' + \
+                    '***** УЦЕНЁННЫЕ ТОВАРЫ *****' + '\n\n' + markdown_message
+
+    return whole_message
 
 
 
 def main():
     for city in city_list:
-        get_city_data(city)
+        mess = get_city_data(city)
+        if len(mess) > 70:
+            send_mail(mess)
 
 
 
