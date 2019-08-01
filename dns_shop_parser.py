@@ -1,34 +1,29 @@
-import requests, os
 from selenium import webdriver
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-import time, bs4, sys, sqlite3, pprint
-import smtplib, email
+import time, bs4, sys, sqlite3
+import smtplib, requests
 from email.mime.text import MIMEText
 from email.header import Header
-import settings
+import settings, tgdata
+import logging
 
 
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                    level = logging.INFO,
+                    filename = 'parser.log'
+                    )
 
-start_time = time.time()
-options = webdriver.FirefoxOptions()
-options.headless = False
-driver = webdriver.Firefox()
 
-url = 'https://www.dns-shop.ru/catalog/markdown/'
-city_list = settings.city_list
 
 def choose_city(town):
     driver.get(url)
+    print('Обрабатываем город ' + town)
 
     # Кликаем на выбор города
     try:
-        WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//div[@class="header-top"]/div/ul/li/div/div')))
+        WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, '//div[@class="header-top"]/div/ul/li/div/div')))
         time.sleep(1)
         driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
 
@@ -36,7 +31,7 @@ def choose_city(town):
         driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
         #driver.find_element_by_link_text(town).click()
 
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//div[@class="search-field"]/input')))
+    WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, '//div[@class="search-field"]/input')))
     search_field = driver.find_element_by_xpath('//div[@class="search-field"]/input')
     search_field.send_keys(town)  # В окне поиска вводим город
 
@@ -48,10 +43,9 @@ def choose_city(town):
         else:
             continue
 
-    WebDriverWait(driver, 30).until(EC.text_to_be_present_in_element(
+    WebDriverWait(driver, 60).until(EC.text_to_be_present_in_element(
         (By.XPATH, '//div[@class="navbar-menu"]/div/div/ul/li/div/div'), town))
 
-    driver.current_window_handle
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')
     # Обновление инфы об общем числе товаров
     count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
@@ -101,6 +95,9 @@ def update_base(data, name_of_table):
     conn = sqlite3.connect("markdown_base.db")  # или :memory: чтобы сохранить в RAM
     cursor = conn.cursor()
 
+    markdown_list = []
+    new_item_list = []
+
     try:
         # Создание таблицы
         cursor.execute(f"""CREATE TABLE {name_of_table}
@@ -110,6 +107,8 @@ def update_base(data, name_of_table):
 
         # Вставляем данные в таблицу
         cursor.executemany(f"INSERT INTO {name_of_table} VALUES (?,?,?,?,?,?)", data)
+        print('Создана новая таблица и в нее добавлено: ' + str(len(data)) + ' записей')
+        #new_item_list.append(data)
 
     except sqlite3.OperationalError:
         pass
@@ -122,8 +121,6 @@ def update_base(data, name_of_table):
     count_of_update = 0
     count_of_insert = 0
 
-    markdown_list = []
-    new_item_list = []
 
     for data_id in data:
         for table_data in id_list:
@@ -142,8 +139,6 @@ def update_base(data, name_of_table):
             count_of_insert += 1
 
     print('Добавлено ' + str(count_of_insert) + '.\nОбновлено ' + str(count_of_update) + '.')
-    #print(new_item_list)
-    #print(markdown_list)
 
     # Сохраняем изменения
     conn.commit()
@@ -182,8 +177,15 @@ def send_mail(message):
         s.login(login, password)
         s.sendmail(msg['From'], recipients_emails, msg.as_string())
     finally:
-        print(msg)
+        #print(msg)
         s.quit()
+
+
+def send_message(chat_id, message):
+    url = tgdata.URL + 'sendMessage'
+    answer = {'chat_id': chat_id, 'text': message}
+    r = requests.post(url, json=answer)
+    return r.json()
 
 
 
@@ -216,10 +218,25 @@ def get_city_data(city):
 
 
 def main():
+    global start_time, options, driver, url, city_list
+    start_time = time.time()
+    options = webdriver.FirefoxOptions()
+    options.headless = True
+    if sys.platform == 'linux':
+        driver = webdriver.Firefox(options=options)
+    else:
+        geckodriver = settings.geckodriver
+        driver = webdriver.Firefox(executable_path=geckodriver, options=options)
+
+
+    url = 'https://www.dns-shop.ru/catalog/markdown/'
+    city_list = settings.city_list
+
     for city in city_list:
         mess = get_city_data(city)
-        if len(mess) > 150:
+        if len(mess) > 130:
             send_mail(mess)
+            send_message(tgdata.chat_id, 'Пришли обновления по dns-shop') # Сообщение в телеграм
     driver.close()
     print("--- На выполение скрипта ушло: %s минут ---" % int(((time.time() - start_time))/60))
 
@@ -227,5 +244,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 
