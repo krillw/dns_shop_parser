@@ -1,5 +1,5 @@
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -22,6 +22,9 @@ def choose_city(town):
     try:
         driver.get(url)
     except TimeoutException:
+        driver.refresh()
+        driver.get(url)
+    except WebDriverException:
         driver.refresh()
         driver.get(url)
 
@@ -68,6 +71,9 @@ def data_to_base(page_url): # Получаем данные для базы с �
     try:
         driver.get(page_url)
     except TimeoutException:
+        driver.refresh()
+        driver.get(page_url)
+    except WebDriverException:
         driver.refresh()
         driver.get(page_url)
 
