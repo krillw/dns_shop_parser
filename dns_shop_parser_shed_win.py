@@ -1,9 +1,10 @@
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 import time, bs4, sys, sqlite3
-import smtplib, requests
+import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
 import settings
@@ -18,7 +19,12 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
 
 
 def choose_city(town):
-    driver.get(url)
+    try:
+        driver.get(url)
+    except TimeoutException:
+        driver.refresh()
+        driver.get(url)
+
     print('Обрабатываем город ' + town)
 
     # Кликаем на выбор города
@@ -59,7 +65,12 @@ def choose_city(town):
 
 
 def data_to_base(page_url): # Получаем данные для базы с одной страницы
-    driver.get(page_url)
+    try:
+        driver.get(page_url)
+    except TimeoutException:
+        driver.refresh()
+        driver.get(page_url)
+
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')
     # Обновление инфы об общем числе товаров
     count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
@@ -218,9 +229,11 @@ def main():
     options.headless = True
     if sys.platform == 'linux':
         driver = webdriver.Firefox(options=options)
+        driver.set_page_load_timeout(90)
     else:
         geckodriver = settings.geckodriver
         driver = webdriver.Firefox(executable_path=geckodriver, options=options)
+        driver.set_page_load_timeout(90)
 
 
     url = 'https://www.dns-shop.ru/catalog/markdown/'
@@ -230,7 +243,7 @@ def main():
         mess = get_city_data(city)
         if len(mess) > 130:
             send_mail(mess)
-    driver.close()
+    driver.quit()
     print("--- На выполение скрипта ушло: %s минут ---" % int(((time.time() - start_time))/60))
 
 
