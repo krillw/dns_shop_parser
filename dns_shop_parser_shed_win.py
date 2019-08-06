@@ -3,7 +3,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-import time, bs4, sys, sqlite3
+import time, bs4, sys, sqlite3, os
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
@@ -19,14 +19,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
 
 
 def choose_city(town):
-    try:
-        driver.get(url)
-    except TimeoutException:
-        driver.refresh()
-        driver.get(url)
-    except WebDriverException:
-        driver.refresh()
-        driver.get(url)
+    driver.get(url)
 
     print('Обрабатываем город ' + town)
 
@@ -68,15 +61,7 @@ def choose_city(town):
 
 
 def data_to_base(page_url): # Получаем данные для базы с одной страницы
-    try:
-        driver.get(page_url)
-    except TimeoutException:
-        driver.refresh()
-        driver.get(page_url)
-    except WebDriverException:
-        driver.refresh()
-        driver.get(page_url)
-
+    driver.get(page_url)
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')
     # Обновление инфы об общем числе товаров
     count_of_items = soup.find('div', class_='page-content-container').find('span').get_text().strip().replace(' ', '')
@@ -230,27 +215,41 @@ def get_city_data(city):
 
 def main():
     global start_time, options, driver, url, city_list
-    start_time = time.time()
-    options = webdriver.FirefoxOptions()
-    options.headless = True
-    if sys.platform == 'linux':
-        driver = webdriver.Firefox(options=options)
-        driver.set_page_load_timeout(90)
-    else:
-        geckodriver = settings.geckodriver
-        driver = webdriver.Firefox(executable_path=geckodriver, options=options)
-        driver.set_page_load_timeout(90)
-
-
-    url = 'https://www.dns-shop.ru/catalog/markdown/'
     city_list = settings.city_list
+    while True:   # Когда этот блок, то это либо начало, либо скрипт заглючил. Обнуляем счётчик
+        count_script_run = 0  # Счётчик успешного завершения скрипта
 
-    for city in city_list:
-        mess = get_city_data(city)
-        if len(mess) > 130:
-            send_mail(mess)
-    driver.quit()
-    print("--- На выполение скрипта ушло: %s минут ---" % int(((time.time() - start_time))/60))
+        try:
+            start_time = time.time()
+            options = webdriver.FirefoxOptions()
+            options.headless = True
+            if sys.platform == 'linux':
+                driver = webdriver.Firefox(executable_path=os.getcwd() + '/geckodriver', options=options)
+                driver.set_page_load_timeout(90)
+            else:
+                geckodriver = settings.geckodriver
+                driver = webdriver.Firefox(executable_path=geckodriver, options=options)
+                driver.set_page_load_timeout(90)
+
+
+            url = 'https://www.dns-shop.ru/catalog/markdown/'
+
+            for city in city_list:
+                mess = get_city_data(city)
+                if len(mess) > 130:
+                    send_mail(mess)
+                count_script_run += 1
+
+            driver.quit()
+            print("--- На выполение скрипта ушло: %s минут ---" % int(((time.time() - start_time)) / 60))
+            if count_script_run == len(city_list):
+                break
+
+        except Exception as ex:
+            driver.quit()
+            print('Возникло исключение: ' + str(ex) + '. Перезапускаем скрипт.')
+            continue
+
 
 
 
