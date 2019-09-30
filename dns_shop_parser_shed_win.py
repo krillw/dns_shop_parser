@@ -25,19 +25,23 @@ def choose_city(town):
 
     # Кликаем на выбор города
     try:
+        logging.info('Кликаем на выбор города')
         WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, '//div[@class="header-top"]/div/ul/li/div/div')))
         time.sleep(1)
         driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
 
     except:
-        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
+        logging.info('Не удалось кликнуть на выбор города')
+        el = driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div')
+        el.click()
         #driver.find_element_by_link_text(town).click()
 
+    logging.info('Вышел из блока except')
     WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, '//div[@class="search-field"]/input')))
     search_field = driver.find_element_by_xpath('//div[@class="search-field"]/input')
     search_field.send_keys(town)  # В окне поиска вводим город
 
-    # Кликаем на город
+    # Кликаем на город    
     gorod_list = driver.find_elements_by_xpath('//div/div/div/ul/li/a/span/mark/..')
     for gorod in gorod_list:
         if town == gorod.text:
@@ -222,10 +226,11 @@ def main():
         try:
             start_time = time.time()
             options = webdriver.FirefoxOptions()
-            options.headless = True
+            options.headless = False
             if sys.platform == 'linux':
-                driver = webdriver.Firefox(executable_path=os.getcwd() + '/geckodriver', options=options)
+                driver = webdriver.Firefox(options=options)
                 driver.set_page_load_timeout(90)
+                logging.info('Создан экземпляр вебдрайвера')
             else:
                 geckodriver = settings.geckodriver
                 driver = webdriver.Firefox(executable_path=geckodriver, options=options)
@@ -245,9 +250,10 @@ def main():
             if count_script_run == len(city_list):
                 break
 
-        except Exception as ex:
-            driver.quit()
+        except Exception as ex:            
             print('Возникло исключение: ' + str(ex) + '. Перезапускаем скрипт.')
+            logging.info('Возникло исключение: ' + str(ex) + '. Перезапускаем скрипт.')
+            driver.quit()
             continue
 
 

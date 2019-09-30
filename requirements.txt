@@ -1,0 +1,6 @@
+bs4==0.0.1
+lxml==4.3.4
+requests==2.22.0
+soupsieve==1.9.2
+schedule==0.6.0
+selenium==3.141.0
