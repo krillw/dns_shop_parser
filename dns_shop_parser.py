@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import requests, os
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
@@ -11,7 +12,6 @@ import time, bs4, sys, sqlite3, pprint
 import smtplib, email
 from email.mime.text import MIMEText
 from email.header import Header
-import settings
 
 
 
@@ -21,35 +21,35 @@ options.headless = False
 driver = webdriver.Firefox()
 
 url = 'https://www.dns-shop.ru/catalog/markdown/'
-city_list = settings.city_list
+city_list = ['Иркутск']
 
 def choose_city(town):
     driver.get(url)
 
-    # Кликаем на выбор города
-    try:
-        WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//div[@class="header-top"]/div/ul/li/div/div')))
-        time.sleep(1)
-        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
-
-    except:
-        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
-        #driver.find_element_by_link_text(town).click()
-
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//div[@class="search-field"]/input')))
-    search_field = driver.find_element_by_xpath('//div[@class="search-field"]/input')
-    search_field.send_keys(town)  # В окне поиска вводим город
-
-    # Кликаем на город
-    gorod_list = driver.find_elements_by_xpath('//div/div/div/ul/li/a/span/mark/..')
-    for gorod in gorod_list:
-        if town == gorod.text:
-            gorod.click()
-        else:
-            continue
-
-    WebDriverWait(driver, 30).until(EC.text_to_be_present_in_element(
-        (By.XPATH, '//div[@class="navbar-menu"]/div/div/ul/li/div/div'), town))
+#    # Кликаем на выбор города
+#    try:
+#        WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//div[@class="header-top"]/div/ul/li/div/div')))
+#        time.sleep(1)
+#        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
+#
+#    except:
+#        driver.find_element_by_xpath('//div[@class="header-top"]/div/ul/li/div/div').click()
+#        #driver.find_element_by_link_text(town).click()
+#
+#    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//div[@class="search-field"]/input')))
+#    search_field = driver.find_element_by_xpath('//div[@class="search-field"]/input')
+#    search_field.send_keys(town)  # В окне поиска вводим город
+#
+#    # Кликаем на город
+#    gorod_list = driver.find_elements_by_xpath('//div/div/div/ul/li/a/span/mark/..')
+#    for gorod in gorod_list:
+#        if town == gorod.text:
+#            gorod.click()
+#        else:
+#            continue
+#
+#    WebDriverWait(driver, 30).until(EC.text_to_be_present_in_element(
+#        (By.XPATH, '//div[@class="navbar-menu"]/div/div/ul/li/div/div'), town))
 
     driver.current_window_handle
     soup = bs4.BeautifulSoup(driver.page_source, 'lxml')

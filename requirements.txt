@@ -1,0 +1,4 @@
+python-settings
+selenium
+bs4
+lxml
