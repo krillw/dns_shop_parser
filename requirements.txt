@@ -1,3 +1,4 @@
+requests
 python-settings
 selenium
 bs4
